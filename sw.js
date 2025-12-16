@@ -4,7 +4,6 @@ const urlsToCache = [
   './index.html',
   './manifest.json',
   // Note: Bootstrap 5.3 CDN assets are not cached here as they are external.
-  // We assume network access for the first load.
 ];
 
 // 1. Installation: Cache static assets
