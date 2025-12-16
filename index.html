@@ -3,59 +3,107 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Productivity 50/10 Tracker</title>
+    <title>Deep Focus 50/10 Tracker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
-        .interval-card { transition: all 0.3s ease; border-left: 5px solid #dee2e6; }
-        .interval-card.active-work { border-left-color: #0d6efd; background-color: #f0f7ff; }
-        .interval-card.active-rest { border-left-color: #198754; background-color: #f0fff4; }
-        .interval-card.completed { border-left-color: #6c757d; opacity: 0.8; }
-        .timer-display { font-family: monospace; font-size: 1.5rem; font-weight: bold; }
+        :root {
+            --bg-main: #f8f9fa;
+            --focus-high: #198754;
+            --focus-mid: #ffc107;
+            --focus-low: #dc3545;
+        }
+        body { background-color: var(--bg-main); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        /* Стили карточек интервалов */
+        .interval-card { 
+            transition: transform 0.2s, box-shadow 0.2s; 
+            border: none;
+            border-left: 6px solid #dee2e6;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .interval-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        
+        .active-work { border-left-color: #0d6efd !important; background-color: #f0f7ff; }
+        .active-rest { border-left-color: var(--focus-high) !important; background-color: #f0fff4; }
+        .completed { border-left-color: #6c757d !important; opacity: 0.8; background-color: #fdfdfd; }
+
+        /* Индикаторы концентрации */
+        .focus-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 10px;
+            position: relative;
+        }
+        .focus-excellent { background-color: var(--focus-high); box-shadow: 0 0 8px var(--focus-high); }
+        .focus-good { background-color: var(--focus-mid); box-shadow: 0 0 8px var(--focus-mid); }
+        .focus-poor { background-color: var(--focus-low); box-shadow: 0 0 8px var(--focus-low); }
+
+        .timer-display { font-family: 'Courier New', Courier, monospace; font-size: 2.5rem; font-weight: bold; color: #333; }
+        .segment-count { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #6c757d; }
+        .sticky-sidebar { position: sticky; top: 20px; }
     </style>
 </head>
-<body class="bg-light">
+<body>
 
-<div class="container py-4">
-    <header class="d-flex justify-content-between align-items-center mb-4">
-        <h1>🚀 Трекер 50/10</h1>
+<div class="container py-5">
+    <header class="d-flex justify-content-between align-items-center mb-5 bg-white p-3 rounded shadow-sm">
         <div>
-            <button class="btn btn-outline-primary btn-sm" onclick="exportData()"><i class="bi bi-download"></i> Экспорт JSON</button>
-            <label class="btn btn-outline-secondary btn-sm mb-0">
+            <h1 class="h3 mb-0 text-primary"><i class="bi bi-clock-history"></i> Deep Focus 50/10</h1>
+            <small class="text-muted" id="currentDateDisplay"></small>
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-outline-dark btn-sm" onclick="exportData()"><i class="bi bi-download"></i> Экспорт</button>
+            <label class="btn btn-outline-dark btn-sm mb-0">
                 <i class="bi bi-upload"></i> Импорт <input type="file" id="importFile" hidden onchange="importData(event)">
             </label>
-            <button class="btn btn-danger btn-sm" onclick="resetDay()"><i class="bi bi-trash"></i> Сброс</button>
+            <button class="btn btn-outline-danger btn-sm" onclick="resetDay()"><i class="bi bi-trash"></i> Сброс</button>
         </div>
     </header>
 
     <div class="row g-4">
-        <div class="col-md-4">
-            <div class="card shadow-sm mb-4">
-                <div class="card-body">
-                    <h5 class="card-title">Параметры дня</h5>
-                    <div class="mb-3">
-                        <label class="form-label">Главная цель</label>
-                        <textarea class="form-control" id="dailyGoal" rows="2" onchange="updateMetadata()"></textarea>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Итоги дня</label>
-                        <textarea class="form-control" id="dailySummary" rows="2" onchange="updateMetadata()"></textarea>
+        <div class="col-lg-4">
+            <div class="sticky-sidebar">
+                <div id="activeStatusCard" class="card shadow border-0 mb-4 d-none">
+                    <div class="card-body text-center py-4">
+                        <h6 id="statusLabel" class="text-uppercase tracking-wider text-muted mb-2">Работа</h6>
+                        <div class="timer-display mb-4" id="mainTimer">00:00</div>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-warning btn-lg" onclick="app.pause(); saveAndRender();">
+                                <i class="bi bi-pause-fill"></i> Пауза
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
-            
-            <div id="activeStatusCard" class="card shadow-sm border-primary d-none">
-                <div class="card-body text-center">
-                    <h5 id="statusLabel">Работа...</h5>
-                    <div class="timer-display mb-3" id="mainTimer">00:00</div>
-                    <button class="btn btn-warning w-100" onclick="app.pause(); saveAndRender();">
-                        <i class="bi bi-pause-fill"></i> Пауза
-                    </button>
+
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">План на день</h5>
+                        <div class="mb-3">
+                            <label class="form-label small text-muted">Главная цель</label>
+                            <textarea class="form-control" id="dailyGoal" rows="3" placeholder="Что сделает этот день успешным?" onchange="updateMetadata()"></textarea>
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label small text-muted">Итоги (в конце дня)</label>
+                            <textarea class="form-control" id="dailySummary" rows="3" onchange="updateMetadata()"></textarea>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card shadow-sm border-0 bg-dark text-white">
+                    <div class="card-body">
+                        <h6>Легенда фокуса:</h6>
+                        <div class="small"><span class="focus-dot focus-excellent"></span> 1 сегмент — Идеально</div>
+                        <div class="small"><span class="focus-dot focus-good"></span> 2-3 сегмента — Отвлечения</div>
+                        <div class="small"><span class="focus-dot focus-poor"></span> 4+ сегментов — Низкий фокус</div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-md-8">
+        <div class="col-lg-8">
             <div id="intervalsList">
                 </div>
         </div>
@@ -63,7 +111,7 @@
 </div>
 
 <script>
-// --- КЛАСС ЛОГИКИ (Тот же, что мы обсуждали ранее) ---
+// --- КЛАСС ПРИЛОЖЕНИЯ ---
 class ProductivityApp {
     constructor(initialData = null) {
         this.state = initialData || this.createNewDay();
@@ -84,7 +132,11 @@ class ProductivityApp {
             });
         }
         return {
-            day_metadata: { date: new Date().toISOString().split('T')[0], daily_main_goal: "", daily_summary: "" },
+            day_metadata: { 
+                date: new Date().toLocaleDateString('ru-RU'), 
+                daily_main_goal: "", 
+                daily_summary: "" 
+            },
             current_state: { active_hour_index: 0, mode: "idle", active_timer_start: null },
             work_intervals: intervals
         };
@@ -92,13 +144,21 @@ class ProductivityApp {
 
     startWork(idx) {
         if (this.state.current_state.mode !== "idle") this.pause();
-        this.state.current_state = { active_hour_index: idx, mode: "work", active_timer_start: new Date().toISOString() };
+        this.state.current_state = { 
+            active_hour_index: idx, 
+            mode: "work", 
+            active_timer_start: new Date().toISOString() 
+        };
         this.state.work_intervals[idx-1].status = "in_progress";
     }
 
     startRest(idx) {
         if (this.state.current_state.mode !== "idle") this.pause();
-        this.state.current_state = { active_hour_index: idx, mode: "rest", active_timer_start: new Date().toISOString() };
+        this.state.current_state = { 
+            active_hour_index: idx, 
+            mode: "rest", 
+            active_timer_start: new Date().toISOString() 
+        };
         this.state.work_intervals[idx-1].status = "resting";
     }
 
@@ -106,10 +166,13 @@ class ProductivityApp {
         const { mode, active_timer_start, active_hour_index } = this.state.current_state;
         if (!active_timer_start) return;
 
-        const duration = new Date() - new Date(active_timer_start);
+        const now = new Date();
+        const start = new Date(active_timer_start);
+        const duration = now - start;
         const interval = this.state.work_intervals[active_hour_index - 1];
 
-        const segment = { start: active_timer_start, end: new Date().toISOString(), duration_ms: duration };
+        const segment = { start: active_timer_start, end: now.toISOString(), duration_ms: duration };
+        
         if (mode === "work") {
             interval.work_segments.push(segment);
             interval.total_work_ms += duration;
@@ -127,20 +190,20 @@ class ProductivityApp {
     }
 }
 
-// --- ЛОГИКА ИНТЕРФЕЙСА ---
+// --- УПРАВЛЕНИЕ ИНТЕРФЕЙСОМ ---
 let app;
-const STORAGE_KEY = 'productivity_state';
+const STORAGE_KEY = 'productivity_pro_v1';
 
 function init() {
     const saved = localStorage.getItem(STORAGE_KEY);
     app = new ProductivityApp(saved ? JSON.parse(saved) : null);
     
-    // Восстановление метаданных в полях ввода
+    document.getElementById('currentDateDisplay').innerText = app.state.day_metadata.date;
     document.getElementById('dailyGoal').value = app.state.day_metadata.daily_main_goal;
     document.getElementById('dailySummary').value = app.state.day_metadata.daily_summary;
 
     render();
-    setInterval(updateTimerDisplay, 1000); // Обновление таймера каждую секунду
+    setInterval(updateTimerLogic, 1000);
 }
 
 function render() {
@@ -151,34 +214,51 @@ function render() {
         const idx = i + 1;
         const isActive = app.state.current_state.active_hour_index === idx;
         const mode = app.state.current_state.mode;
+        const segmentsCount = item.work_segments.length;
         
-        let cardClass = "card mb-3 interval-card ";
-        if (isActive) cardClass += (mode === 'work' ? 'active-work' : 'active-rest');
-        if (item.status === 'completed') cardClass += 'completed';
+        // Определяем цвет индикатора фокуса
+        let focusClass = '';
+        if (segmentsCount === 1) focusClass = 'focus-excellent';
+        else if (segmentsCount > 1 && segmentsCount <= 3) focusClass = 'focus-good';
+        else if (segmentsCount > 3) focusClass = 'focus-poor';
+
+        let cardClass = `card mb-3 interval-card ${isActive ? (mode === 'work' ? 'active-work' : 'active-rest') : ''} ${item.status === 'completed' ? 'completed' : ''}`;
 
         list.innerHTML += `
             <div class="${cardClass}">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <h5 class="mb-0">Час ${idx}</h5>
-                        <span class="badge bg-secondary">${formatTime(item.total_work_ms)} / 50m</span>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="d-flex align-items-center">
+                            ${segmentsCount > 0 ? `<span class="focus-dot ${focusClass}"></span>` : '<span class="focus-dot bg-light"></span>'}
+                            <h5 class="mb-0">Интервал ${idx}</h5>
+                        </div>
+                        <div class="text-end">
+                            <span class="badge ${item.total_work_ms > 3000000 ? 'bg-danger' : 'bg-primary'} font-monospace">
+                                ${formatTime(item.total_work_ms)} / 50:00
+                            </span>
+                            ${segmentsCount > 0 ? `<div class="segment-count mt-1">Сегментов: ${segmentsCount}</div>` : ''}
+                        </div>
                     </div>
                     
-                    <input type="text" class="form-control form-control-sm mb-2" 
-                           placeholder="Что планируем сделать?" 
-                           value="${item.planned_task}" 
-                           onchange="updateTask(${idx}, this.value)"
-                           ${item.status === 'completed' ? 'disabled' : ''}>
+                    <div class="mb-3">
+                        <input type="text" class="form-control border-0 bg-light" 
+                               placeholder="Что планируете сделать?" 
+                               value="${item.planned_task}" 
+                               onchange="updateTask(${idx}, this.value)"
+                               ${item.status === 'completed' ? 'disabled' : ''}>
+                    </div>
 
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-primary" onclick="startWork(${idx})" ${isActive && mode==='work' ? 'disabled' : ''}>
-                            <i class="bi bi-play-fill"></i> Работа
-                        </button>
-                        <button class="btn btn-outline-success" onclick="startRest(${idx})" ${isActive && mode==='rest' ? 'disabled' : ''}>
-                            <i class="bi bi-cup-hot"></i> Отдых
-                        </button>
-                        <button class="btn btn-outline-secondary" onclick="completeHour(${idx})">
-                            <i class="bi bi-check-all"></i> Готово
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-primary" onclick="startWork(${idx})" ${isActive && mode==='work' ? 'disabled' : ''}>
+                                <i class="bi bi-play-fill"></i> Работа
+                            </button>
+                            <button class="btn btn-sm btn-success" onclick="startRest(${idx})" ${isActive && mode==='rest' ? 'disabled' : ''}>
+                                <i class="bi bi-cup-hot"></i> Отдых
+                            </button>
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="completeHour(${idx})">
+                            <i class="bi bi-check-circle"></i> Завершить час
                         </button>
                     </div>
                 </div>
@@ -187,7 +267,7 @@ function render() {
     });
 }
 
-function updateTimerDisplay() {
+function updateTimerLogic() {
     const state = app.state.current_state;
     const card = document.getElementById('activeStatusCard');
     
@@ -199,10 +279,16 @@ function updateTimerDisplay() {
     card.classList.remove('d-none');
     const diff = new Date() - new Date(state.active_timer_start);
     document.getElementById('mainTimer').innerText = formatTime(diff);
-    document.getElementById('statusLabel').innerText = state.mode === 'work' ? '🔥 Работаем' : '☕ Отдых';
+    document.getElementById('statusLabel').innerText = state.mode === 'work' ? '🔥 Глубокая работа' : '☕ Время отдыха';
+    
+    // Динамическое изменение цвета таймера, если перебор
+    if (state.mode === 'work' && diff > 3000000) { // 50 min
+        document.getElementById('mainTimer').classList.add('text-danger');
+    } else {
+        document.getElementById('mainTimer').classList.remove('text-danger');
+    }
 }
 
-// Хелперы
 function formatTime(ms) {
     const totalSec = Math.floor(ms / 1000);
     const min = Math.floor(totalSec / 60).toString().padStart(2, '0');
@@ -215,10 +301,15 @@ function saveAndRender() {
     render();
 }
 
-// Экшны
+// Функции-обработчики
 function startWork(idx) { app.startWork(idx); saveAndRender(); }
 function startRest(idx) { app.startRest(idx); saveAndRender(); }
-function completeHour(idx) { app.complete(idx); saveAndRender(); }
+function completeHour(idx) { 
+    const res = prompt("Что было сделано за этот час?");
+    app.state.work_intervals[idx-1].actual_result = res || "";
+    app.complete(idx); 
+    saveAndRender(); 
+}
 function updateTask(idx, val) { app.state.work_intervals[idx-1].planned_task = val; saveAndRender(); }
 function updateMetadata() {
     app.state.day_metadata.daily_main_goal = document.getElementById('dailyGoal').value;
@@ -227,34 +318,36 @@ function updateMetadata() {
 }
 
 function exportData() {
-    const blob = new Blob([JSON.stringify(app.state, null, 2)], {type: 'application/json'});
+    const data = JSON.stringify(app.state, null, 2);
+    const blob = new Blob([data], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `productivity-${app.state.day_metadata.date}.json`;
+    a.download = `focus-day-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
 }
 
 function importData(event) {
     const reader = new FileReader();
     reader.onload = (e) => {
-        app.state = JSON.parse(e.target.result);
-        saveAndRender();
-        location.reload(); 
+        try {
+            app.state = JSON.parse(e.target.result);
+            saveAndRender();
+            location.reload();
+        } catch(err) { alert("Ошибка в файле JSON"); }
     };
     reader.readAsText(event.target.files[0]);
 }
 
 function resetDay() {
-    if(confirm('Очистить все данные за день?')) {
+    if(confirm('Вы уверены? Весь прогресс за сегодня будет удален.')) {
         localStorage.removeItem(STORAGE_KEY);
         location.reload();
     }
 }
 
+// Запуск
 init();
 </script>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
