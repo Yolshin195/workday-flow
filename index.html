@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Productivity Tracker</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#0d6efd">
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    
+    <style>
+        :root {
+            --work-color: #198754; /* Bootstrap success */
+            --rest-color: #0dcaf0; /* Bootstrap info */
+            --procrastination-color: #ffc107; /* Bootstrap warning */
+        }
+        .timer-display {
+            font-size: 3rem;
+            font-weight: bold;
+            line-height: 1;
+        }
+        .timer-card.work { border-left: 5px solid var(--work-color); }
+        .timer-card.rest { border-left: 5px solid var(--rest-color); }
+        .active-timer-type {
+            font-size: 1.25rem;
+            font-weight: 500;
+        }
+        .timer-running .card {
+            box-shadow: 0 0 10px rgba(13, 110, 253, 0.5); /* Blue glow for active state */
+            transform: scale(1.01);
+            transition: all 0.3s ease-in-out;
+        }
+        .status-procrastination { color: var(--procrastination-color); }
+    </style>
+</head>
+<body class="bg-light">
+
+    <div class="container py-4">
+        <header class="mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1 id="current-date" class="h3 text-primary"></h1>
+                <div class="d-flex gap-2">
+                    <button id="export-btn" class="btn btn-outline-secondary btn-sm" title="Export Data">Export</button>
+                    <button id="import-btn" class="btn btn-outline-secondary btn-sm" title="Import Data">Import</button>
+                </div>
+            </div>
+            <div class="input-group mt-2">
+                <span class="input-group-text">Daily Plan</span>
+                <input type="text" id="daily-plan-input" class="form-control" placeholder="What are your main tasks today?">
+            </div>
+        </header>
+
+        <section id="workday-controls" class="mb-4 text-center">
+            <button id="start-day-btn" class="btn btn-success btn-lg me-3">Start Working Day</button>
+            <button id="finish-day-btn" class="btn btn-danger btn-lg" disabled>Finish Day</button>
+        </section>
+
+        <section id="metrics" class="row mb-4">
+            <div class="col-md-4 mb-3">
+                <div class="card p-3 shadow-sm">
+                    <h5 class="card-title text-success">Worked Hours</h5>
+                    <p id="metric-worked-hours" class="fs-4 mb-0">00:00:00</p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card p-3 shadow-sm">
+                    <h5 class="card-title text-warning">Procrastination Time</h5>
+                    <p id="metric-procrastination" class="fs-4 mb-0">00:00:00</p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card p-3 shadow-sm">
+                    <h5 class="card-title text-primary">Interruptions</h5>
+                    <p id="metric-interruptions" class="fs-4 mb-0">0</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="hour-tracker">
+            </section>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eJdFwF7a5o9oI1R6Q" crossorigin="anonymous"></script>
+
+    <script>
+        /**
+         * PWA Productivity Tracker - Vanilla JS Application Logic
+         * Adheres to constraints: No frameworks, no build tools, only vanilla JS/HTML/CSS (Bootstrap CDN)
+         * State management via localStorage for persistence.
+         */
+
+        const STATE_KEY = 'prodTrackerState';
+        const WORK_DURATION = 50 * 60; // 50 minutes in seconds
+        const REST_DURATION = 10 * 60; // 10 minutes in seconds
+        const TOTAL_HOURS = 8;
+        const PWA_SCOPE = '.';
+
+        let state = {
+            isWorkdayStarted: false,
+            workdayStartTime: null,
+            dailyPlan: '',
+            hours: [],
+            activeTimer: {
+                hourIndex: -1,
+                type: null, // 'work' or 'rest'
+                remainingTime: 0,
+                isRunning: false,
+                startTime: null,
+                interruptionCount: 0
+            },
+            metrics: {
+                totalWorkedSeconds: 0,
+                procrastinationSeconds: 0,
+                totalInterruptions: 0
+            }
+        };
+
+        let timerInterval = null;
+        const audio = new Audio('https://cdn.jsdelivr.net/gh/google/material-design-icons/media/ring.mp3'); // Simple alert sound
+
+        // --- Utility Functions ---
+
+        /**
+         * Formats seconds into HH:MM:SS string.
+         * @param {number} totalSeconds
+         * @returns {string}
+         */
+        function formatTime(totalSeconds) {
+            const absSeconds = Math.abs(totalSeconds);
+            const sign = totalSeconds < 0 ? '-' : '';
+            const hours = Math.floor(absSeconds / 3600);
+            const minutes = Math.floor((absSeconds % 3600) / 60);
+            const seconds = absSeconds % 60;
+            return `${sign}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        /**
+         * Sends a message to the Service Worker for off-tab/closed-tab notifications.
+         * @param {string} timerType - 'work' or 'rest'
+         */
+        function postNotificationToSW(timerType) {
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                navigator.serviceWorker.controller.postMessage({
+                    type: 'TIMER_END',
+                    timerType: timerType
+                });
+            }
+        }
+
+        // --- Storage Management ---
+
+        /**
+         * Saves the current application state to localStorage.
+         */
+        function saveState() {
+            localStorage.setItem(STATE_KEY, JSON.stringify(state));
+        }
+
+        /**
+         * Loads state from localStorage or initializes a new state.
+         */
+        function loadState() {
+            const savedState = localStorage.getItem(STATE_KEY);
+            if (savedState) {
+                const loaded = JSON.parse(savedState);
+                
+                // Restore only the date-independent parts and ensure hours array has the correct length
+                if (loaded.workdayStartTime && new Date(loaded.workdayStartTime).toDateString() === new Date().toDateString()) {
+                    // Same day, restore full state
+                    state = loaded;
+                } else {
+                    // New day, reset state, but keep plan if it exists
+                    const newDayState = initializeWorkdayState();
+                    if (loaded.dailyPlan) {
+                        newDayState.dailyPlan = loaded.dailyPlan;
+                    }
+                    state = newDayState;
+                }
+            } else {
+                state = initializeWorkdayState();
+            }
+            // Restore timer running state if necessary (it will be immediately stopped on reload, but time will be adjusted)
+            if (state.activeTimer.isRunning && state.activeTimer.startTime) {
+                const elapsed = Math.floor((Date.now() - state.activeTimer.startTime) / 1000);
+                state.activeTimer.remainingTime = Math.max(0, state.activeTimer.remainingTime - elapsed);
+                state.activeTimer.isRunning = false; // Stop on load to prevent ghost timers
+                state.activeTimer.startTime = null;
+            }
+            
+            saveState(); // Ensure the potentially adjusted state is saved
+        }
+        
+        /**
+         * Initializes the state for a new workday.
+         * @returns {object} The initialized state object.
+         */
+        function initializeWorkdayState() {
+            return {
+                isWorkdayStarted: false,
+                workdayStartTime: null,
+                dailyPlan: state.dailyPlan || '', // Keep existing plan if available
+                hours: Array.from({ length: TOTAL_HOURS }, () => ({
+                    plannedTask: '',
+                    actualResult: '',
+                    workTimer: WORK_DURATION, // Remaining time for work
+                    restTimer: REST_DURATION, // Remaining time for rest
+                    interruptionCount: 0,
+                    workCompleted: false,
+                    restCompleted: false
+                })),
+                activeTimer: {
+                    hourIndex: -1,
+                    type: null,
+                    remainingTime: 0,
+                    isRunning: false,
+                    startTime: null,
+                    interruptionCount: 0
+                },
+                metrics: {
+                    totalWorkedSeconds: 0,
+                    procrastinationSeconds: 0,
+                    totalInterruptions: 0
+                }
+            };
+        }
+
+
+        // --- UI Rendering ---
+
+        /**
+         * Renders the entire application UI based on the current state.
+         */
+        function render() {
+            document.getElementById('current-date').textContent = new Date().toDateString();
+            document.getElementById('daily-plan-input').value = state.dailyPlan;
+
+            const startBtn = document.getElementById('start-day-btn');
+            const finishBtn = document.getElementById('finish-day-btn');
+            const planInput = document.getElementById('daily-plan-input');
+            const hourTracker = document.getElementById('hour-tracker');
+
+            startBtn.disabled = state.isWorkdayStarted;
+            finishBtn.disabled = !state.isWorkdayStarted;
+            planInput.disabled = state.isWorkdayStarted;
+
+            // Render Metrics
+            document.getElementById('metric-worked-hours').textContent = formatTime(state.metrics.totalWorkedSeconds);
+            document.getElementById('metric-procrastination').textContent = formatTime(state.metrics.procrastinationSeconds);
+            document.getElementById('metric-interruptions').textContent = state.metrics.totalInterruptions;
+
+            // Render Hour Blocks
+            hourTracker.innerHTML = state.hours.map((hour, index) => {
+                const isActive = state.activeTimer.hourIndex === index && state.activeTimer.isRunning;
+                const activeType = state.activeTimer.hourIndex === index ? state.activeTimer.type : null;
+                const workTime = index < state.hours.length ? state.hours[index].workTimer : WORK_DURATION;
+                const restTime = index < state.hours.length ? state.hours[index].restTimer : REST_DURATION;
+                const currentRemaining = isActive ? state.activeTimer.remainingTime : (activeType === 'work' ? workTime : (activeType === 'rest' ? restTime : 0));
+                const currentType = isActive ? state.activeTimer.type : null;
+                const cardClass = currentType ? (currentType === 'work' ? 'work' : 'rest') : '';
+                const interruptionBadge = hour.interruptionCount > 0 ? `<span class="badge bg-danger ms-2">${hour.interruptionCount} interruptions</span>` : '';
+
+                return `
+                    <div class="card shadow-sm mb-3 timer-card ${cardClass}" data-hour-index="${index}">
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                            <h4 class="mb-0">Hour ${index + 1} of ${TOTAL_HOURS}</h4>
+                            ${interruptionBadge}
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Planned Task</label>
+                                    <input type="text" class="form-control planned-task-input" value="${hour.plannedTask}" data-index="${index}" ${state.isWorkdayStarted ? '' : ''}>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Actual Result</label>
+                                    <input type="text" class="form-control actual-result-input" value="${hour.actualResult}" data-index="${index}" ${state.isWorkdayStarted ? '' : ''}>
+                                </div>
+                            </div>
+
+                            <div class="row mt-2 align-items-center">
+                                <div class="col-md-6">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div class="me-3">
+                                            <div class="active-timer-type text-${currentType === 'work' ? 'success' : 'info'}">${currentType ? currentType.toUpperCase() : 'Inactive'}</div>
+                                            <div class="timer-display text-${currentType === 'work' ? 'success' : 'info'}" id="timer-display-${index}">${formatTime(currentRemaining || (currentType === 'work' ? WORK_DURATION : REST_DURATION))}</div>
+                                        </div>
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-success start-timer-btn" data-index="${index}" data-type="work" ${!state.isWorkdayStarted || currentType === 'work' || hour.workCompleted ? 'disabled' : ''}>${currentType === 'work' ? 'Pause Work' : 'Start Work (50m)'}</button>
+                                            <button class="btn btn-info start-timer-btn" data-index="${index}" data-type="rest" ${!state.isWorkdayStarted || currentType === 'rest' || hour.restCompleted ? 'disabled' : ''}>${currentType === 'rest' ? 'Pause Rest' : 'Start Rest (10m)'}</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 text-center">
+                                    <p class="text-muted mb-1">Work: ${formatTime(WORK_DURATION - workTime)} / ${formatTime(WORK_DURATION)}</p>
+                                    <p class="text-muted mb-1">Rest: ${formatTime(REST_DURATION - restTime)} / ${formatTime(REST_DURATION)}</p>
+                                    <p class="mb-0"><button class="btn btn-sm btn-outline-warning interrupt-btn" data-index="${index}" ${!state.isWorkdayStarted || !currentType ? 'disabled' : ''}>Interrupt Timer</button></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Re-attach event listeners after innerHTML update
+            attachEventListeners();
+            updateDocumentTitle();
+        }
+        
+        /**
+         * Updates the browser tab title with the active timer.
+         */
+        function updateDocumentTitle() {
+            if (state.activeTimer.isRunning) {
+                const timerType = state.activeTimer.type.toUpperCase();
+                const time = formatTime(state.activeTimer.remainingTime);
+                document.title = `[${timerType}] ${time} - ProdTracker`;
+            } else {
+                document.title = 'Productivity Tracker';
+            }
+        }
+
+        // --- Core Logic ---
+        
+        /**
+         * Starts the main workday.
+         */
+        function startWorkday() {
+            if (state.isWorkdayStarted) return;
+            state.isWorkdayStarted = true;
+            state.workdayStartTime = Date.now();
+            // Reset procrastination on start
+            state.metrics.procrastinationSeconds = 0;
+            saveState();
+            startIntervals();
+            render();
+            alert('Workday Started!');
+        }
+        
+        /**
+         * Finishes the workday and stops all tracking.
+         */
+        function finishWorkday() {
+            if (!state.isWorkdayStarted) return;
+            
+            // Stop active timer if any
+            if (state.activeTimer.isRunning) {
+                stopTimer(false); // Stop without saving remaining time as time is finished
+            }
+            
+            // Stop all intervals
+            clearInterval(timerInterval);
+            timerInterval = null;
+
+            state.isWorkdayStarted = false;
+            saveState();
+            render();
+            alert('Workday Finished! Good job!');
+        }
+
+        /**
+         * Toggles the timer (Start/Pause).
+         * @param {number} hourIndex
+         * @param {string} type - 'work' or 'rest'
+         */
+        function toggleTimer(hourIndex, type) {
+            if (!state.isWorkdayStarted) return;
+            
+            // 1. If a timer is already running:
+            if (state.activeTimer.isRunning) {
+                // If it's the *same* timer, pause it.
+                if (state.activeTimer.hourIndex === hourIndex && state.activeTimer.type === type) {
+                    stopTimer(true); // Save remaining time
+                } else {
+                    // If a *different* timer is running, pause the old one before starting the new one.
+                    const oldIndex = state.activeTimer.hourIndex;
+                    const oldType = state.activeTimer.type;
+                    stopTimer(true); // Save remaining time of the old timer
+
+                    // The logic below will now start the new timer.
+                }
+            }
+            
+            // 2. Start the timer:
+            if (!state.activeTimer.isRunning) {
+                // Determine the starting time
+                const hour = state.hours[hourIndex];
+                const initialRemaining = type === 'work' ? hour.workTimer : hour.restTimer;
+
+                if (initialRemaining <= 0) {
+                    alert(`${type.toUpperCase()} timer for Hour ${hourIndex + 1} is already complete!`);
+                    return;
+                }
+                
+                state.activeTimer = {
+                    hourIndex: hourIndex,
+                    type: type,
+                    remainingTime: initialRemaining,
+                    isRunning: true,
+                    startTime: Date.now(),
+                    interruptionCount: state.activeTimer.interruptionCount // Keep current interruption count
+                };
+
+                startIntervals();
+            }
+            
+            saveState();
+            render();
+        }
+
+        /**
+         * Stops the active timer.
+         * @param {boolean} shouldSaveRemaining - If true, the remaining time is saved back to the hour block.
+         */
+        function stopTimer(shouldSaveRemaining) {
+            if (!state.activeTimer.isRunning) return;
+
+            // Calculate elapsed time and update metrics/state
+            const elapsed = Math.floor((Date.now() - state.activeTimer.startTime) / 1000);
+            const hourIndex = state.activeTimer.hourIndex;
+            const type = state.activeTimer.type;
+            const remaining = Math.max(0, state.activeTimer.remainingTime - elapsed);
+            
+            if (hourIndex !== -1 && state.hours[hourIndex]) {
+                const hour = state.hours[hourIndex];
+                
+                if (type === 'work') {
+                    if (shouldSaveRemaining) {
+                        hour.workTimer = remaining;
+                    }
+                    state.metrics.totalWorkedSeconds += Math.min(elapsed, state.activeTimer.remainingTime);
+                    if (remaining === 0) {
+                        hour.workTimer = 0;
+                        hour.workCompleted = true;
+                    }
+                } else if (type === 'rest') {
+                    if (shouldSaveRemaining) {
+                        hour.restTimer = remaining;
+                    }
+                    if (remaining === 0) {
+                        hour.restTimer = 0;
+                        hour.restCompleted = true;
+                    }
+                }
+            }
+
+            // Reset active timer state
+            state.activeTimer = {
+                hourIndex: -1,
+                type: null,
+                remainingTime: 0,
+                isRunning: false,
+                startTime: null,
+                interruptionCount: 0 // Reset interruption count when timer is stopped/completed
+            };
+            
+            // Stop the interval if no active timer is running anywhere
+            if (!state.activeTimer.isRunning) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            
+            saveState();
+            updateDocumentTitle();
+        }
+
+        /**
+         * Timer tick logic (runs every 1 second).
+         */
+        function timerTick() {
+            if (state.activeTimer.isRunning) {
+                state.activeTimer.remainingTime--;
+                
+                // Update metrics instantly for smooth display
+                if (state.activeTimer.type === 'work') {
+                    state.metrics.totalWorkedSeconds++;
+                }
+
+                if (state.activeTimer.remainingTime <= 0) {
+                    handleTimerEnd();
+                }
+            } else if (state.isWorkdayStarted && !state.activeTimer.isRunning) {
+                // Procrastination time: day is started but no timer is running
+                state.metrics.procrastinationSeconds++;
+            }
+            
+            // Update UI
+            if (state.activeTimer.isRunning) {
+                const displayElement = document.getElementById(`timer-display-${state.activeTimer.hourIndex}`);
+                if (displayElement) {
+                    displayElement.textContent = formatTime(state.activeTimer.remainingTime);
+                }
+                updateDocumentTitle();
+            } else {
+                updateDocumentTitle(); // To reset title
+            }
+            
+            // Update metrics display
+            document.getElementById('metric-worked-hours').textContent = formatTime(state.metrics.totalWorkedSeconds);
+            document.getElementById('metric-procrastination').textContent = formatTime(state.metrics.procrastinationSeconds);
+
+            // Save state periodically (e.g., every 5 seconds or on a smaller interval)
+            if (state.activeTimer.isRunning || state.isWorkdayStarted) {
+                if (state.activeTimer.remainingTime % 5 === 0) {
+                    saveState();
+                }
+            }
+        }
+        
+        /**
+         * Handles the logic when a timer reaches zero.
+         */
+        function handleTimerEnd() {
+            audio.play();
+            
+            const endedType = state.activeTimer.type;
+            const hourIndex = state.activeTimer.hourIndex;
+            
+            // Send notification via Service Worker (for when tab is closed)
+            if (Notification.permission === 'granted') {
+                postNotificationToSW(endedType);
+            }
+            
+            // Stop and save the completion status
+            stopTimer(false); // Do not save remaining time, it's 0
+
+            // Auto-start the opposite timer if possible
+            if (endedType === 'work' && !state.hours[hourIndex].restCompleted) {
+                alert(`Work for Hour ${hourIndex + 1} finished! Starting 10-minute rest.`);
+                toggleTimer(hourIndex, 'rest');
+            } else if (endedType === 'rest' && hourIndex < TOTAL_HOURS - 1) {
+                alert(`Rest for Hour ${hourIndex + 1} finished! Ready for Hour ${hourIndex + 2}.`);
+            } else {
+                alert(`Timer Finished!`);
+            }
+
+            render();
+        }
+        
+        /**
+         * Records a timer interruption.
+         */
+        function recordInterruption() {
+            if (!state.activeTimer.isRunning) return;
+
+            state.activeTimer.interruptionCount++;
+            state.metrics.totalInterruptions++;
+            
+            // Also apply interruption count to the specific hour block
+            const hour = state.hours[state.activeTimer.hourIndex];
+            if (hour) {
+                hour.interruptionCount++;
+            }
+            
+            saveState();
+            render();
+            alert('Interruption recorded!');
+        }
+
+        /**
+         * Starts the main 1-second interval loop for time tracking.
+         */
+        function startIntervals() {
+            if (!timerInterval) {
+                // Run tick immediately, then every second
+                timerTick();
+                timerInterval = setInterval(timerTick, 1000);
+            }
+        }
+
+        // --- Event Listeners ---
+
+        function attachEventListeners() {
+            // Day controls
+            document.getElementById('start-day-btn').onclick = startWorkday;
+            document.getElementById('finish-day-btn').onclick = finishWorkday;
+            
+            // Daily Plan input
+            document.getElementById('daily-plan-input').oninput = (e) => {
+                state.dailyPlan = e.target.value;
+                saveState();
+            };
+            
+            // Timer controls
+            document.querySelectorAll('.start-timer-btn').forEach(button => {
+                button.onclick = (e) => {
+                    const index = parseInt(e.target.dataset.index);
+                    const type = e.target.dataset.type;
+                    toggleTimer(index, type);
+                };
+            });
+            
+            // Interruption button
+            document.querySelectorAll('.interrupt-btn').forEach(button => {
+                button.onclick = recordInterruption;
+            });
+
+            // Hour block inputs (Planned Task / Actual Result)
+            document.querySelectorAll('.planned-task-input').forEach(input => {
+                input.oninput = (e) => {
+                    const index = parseInt(e.target.dataset.index);
+                    state.hours[index].plannedTask = e.target.value;
+                    saveState();
+                };
+            });
+            
+            document.querySelectorAll('.actual-result-input').forEach(input => {
+                input.oninput = (e) => {
+                    const index = parseInt(e.target.dataset.index);
+                    state.hours[index].actualResult = e.target.value;
+                    saveState();
+                };
+            });
+            
+            // Export/Import
+            document.getElementById('export-btn').onclick = exportData;
+            document.getElementById('import-btn').onclick = importData;
+        }
+
+        // --- PWA Setup ---
+
+        function registerServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('sw.js', { scope: PWA_SCOPE })
+                        .then(registration => {
+                            console.log('Service Worker registered with scope:', registration.scope);
+                            
+                            // Check for notification permission
+                            if (Notification.permission === 'default') {
+                                Notification.requestPermission();
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Service Worker registration failed:', error);
+                        });
+                });
+            }
+        }
+
+        // --- Data Management (Export/Import) ---
+        
+        /**
+         * Exports the current state as a JSON file.
+         */
+        function exportData() {
+            const dataStr = JSON.stringify(state, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+
+            const exportFileDefaultName = `productivity-tracker-data-${new Date().toISOString().slice(0, 10)}.json`;
+
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+        }
+
+        /**
+         * Prompts the user to import a JSON file and loads the state.
+         */
+        function importData() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'application/json';
+            
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const importedState = JSON.parse(event.target.result);
+                        if (importedState && importedState.hours && Array.isArray(importedState.hours)) {
+                            // Simple validation: check for key properties
+                            state = importedState;
+                            saveState();
+                            render();
+                            alert('State imported successfully! The current view reflects the imported data.');
+                        } else {
+                            alert('Invalid data structure in the imported file.');
+                        }
+                    } catch (error) {
+                        console.error('Error importing state:', error);
+                        alert('Error reading or parsing the file. Please ensure it is a valid JSON export.');
+                    }
+                };
+                reader.readAsText(file);
+            };
+            
+            input.click();
+        }
+
+
+        // --- Initialization ---
+
+        function init() {
+            registerServiceWorker();
+            loadState();
+            render();
+            
+            // If the workday was running when the page reloaded, restart the interval 
+            // to catch up on procrastination time or immediately stop the active timer.
+            if (state.isWorkdayStarted) {
+                // The timer was stopped in loadState, now we only need the procrastination interval
+                if (state.activeTimer.isRunning) {
+                     // This condition should generally be false due to logic in loadState, 
+                     // but as a failsafe:
+                     stopTimer(true);
+                }
+                startIntervals();
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
