@@ -122,6 +122,11 @@
                         </a>
                     </li>
                     <li class="mb-2">
+                        <a href="#" class="text-decoration-none text-muted d-flex align-items-center" onclick="loadDemoData()">
+                            <i class="bi bi-magic me-2 text-primary "></i>Заполнить демо-данными
+                        </a>
+                    </li>
+                    <li class="mb-2">
                         <a href="#" class="text-decoration-none text-muted d-flex align-items-center" onclick="exportData()">
                             <i class="bi bi-download me-2 text-primary"></i>Сохранить отчет
                         </a>
@@ -464,6 +469,71 @@ function importData(e) {
 }
 
 function resetDay() { if(confirm('Удалить данные за день?')) { localStorage.removeItem(STORAGE_KEY); location.reload(); } }
+
+function loadDemoData() {
+    if (!confirm('Это заменит ваши текущие данные демонстрационными. Продолжить?')) return;
+
+    // Сценарий: Разработка модуля аналитики
+    const demoTasks = [
+        { 
+            task: "Разбор почты, планирование дня и приоритезация задач", 
+            res: "Выделено 3 ключевых тикета на сегодня. Ответил на срочные письма.", 
+            segments: 2 // Желтый: небольшие отвлечения на почту
+        },
+        { 
+            task: "[Часть 1/2] Проектирование схемы данных для модуля отчетов", 
+            res: "Описал структуру JSON, подготовил SQL миграцию.", 
+            segments: 1 // Зеленый: Глубокая работа
+        },
+        { 
+            task: "[Часть 2/2] Реализация API эндпоинтов для выгрузки аналитики", 
+            res: "Написал контроллеры, подключил фильтрацию по датам. Работает!", 
+            segments: 1 // Зеленый: Глубокая работа продолжается
+        },
+        { 
+            task: "Обед и прогулка (информационный детокс)", 
+            res: "Отдохнул без телефона, готов ко второй половине дня.", 
+            segments: 1 
+        },
+        { 
+            task: "Фикс багов по UI: верстка мобильного меню и кнопок", 
+            res: "Поправил отступы в хедере, исправил баг с наложением слоев.", 
+            segments: 5 // Красный: Постоянно дергали в чатах или фиксил мелкие детали
+        }
+    ];
+
+    app.state = app.createNewDay();
+    app.state.day_metadata.day_start = "10:00";
+    app.state.day_metadata.daily_main_goal = "Запустить MVP модуля аналитики и закрыть долги по верстке";
+    app.state.day_metadata.daily_summary = "Удалось поработать в режиме 'глубокого погружения' над архитектурой (2 часа подряд). Во второй половине дня фокус упал из-за правок по UI — нужно планировать такие задачи отдельно от сложного кода.";
+
+    demoTasks.forEach((demo, i) => {
+        const interval = app.state.work_intervals[i];
+        interval.planned_task = demo.task;
+        interval.actual_result = demo.res;
+        interval.status = "completed";
+        interval.total_work_ms = LIMITS.work;
+        
+        // Генерируем сегменты для визуализации качества
+        for(let s = 0; s < demo.segments; s++) {
+            interval.work_segments.push({ 
+                duration_ms: LIMITS.work / demo.segments,
+                start: new Date().toISOString(),
+                end: new Date().toISOString()
+            });
+        }
+    });
+
+    // Делаем 6-й час текущим, как будто мы сейчас над ним работаем
+    const currentInterval = app.state.work_intervals[5];
+    currentInterval.planned_task = "Написание документации к API (Swagger)";
+    currentInterval.status = "pending";
+
+    saveAndRender();
+    
+    // Скролл вверх, чтобы увидеть результат
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 
 init();
 </script>
