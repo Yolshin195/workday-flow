@@ -38,6 +38,24 @@
         /* Стили для новой панели */
         .workday-status-card { background: white; border-radius: 15px; padding: 15px 25px; margin-bottom: 2rem; }
         .time-badge { font-weight: bold; color: var(--primary-accent); font-size: 1.1rem; }
+        /* Стили для завершенного результата */
+        .result-box {
+            background-color: #ffffff;
+            border-left: 3px solid #6c757d;
+            padding: 10px 15px;
+            border-radius: 0 8px 8px 0;
+            margin-top: 10px;
+            font-style: italic;
+            color: #495057;
+            font-size: 0.9rem;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.02);
+        }
+
+        .completed .planned-task-text {
+            text-decoration: none;
+            color: #6c757d;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -327,7 +345,7 @@ function triggerAlarm(mode) {
 }
 
 function render() {
-    renderDayControls(); // Отрисовываем новые кнопки
+    renderDayControls(); 
     
     const list = document.getElementById('intervalsList');
     list.innerHTML = '';
@@ -336,14 +354,34 @@ function render() {
         const idx = i + 1;
         const isActive = app.state.current_state.active_hour_index === idx;
         const mode = app.state.current_state.mode;
+        const isCompleted = item.status === 'completed';
         const segments = item.work_segments.length;
         
         let focusClass = segments === 1 ? 'focus-excellent' : segments > 1 && segments <= 3 ? 'focus-good' : segments > 3 ? 'focus-poor' : 'bg-light';
         const remainingWork = Math.max(0, LIMITS.work - item.total_work_ms);
         const workPercent = Math.min((item.total_work_ms / LIMITS.work) * 100, 100);
 
+        // Формируем контент центральной части (задача + результат)
+        let taskContent = '';
+        if (isCompleted) {
+            taskContent = `
+                <div class="planned-task-text mb-1">
+                    <i class="bi bi-pin-angle-fill me-2"></i>${item.planned_task || 'Без названия'}
+                </div>
+                <div class="result-box">
+                    <small class="text-uppercase fw-bold d-block" style="font-size: 0.7rem; opacity: 0.7;">Результат:</small>
+                    ${item.actual_result || 'Результат не записан'}
+                </div>`;
+        } else {
+            taskContent = `
+                <input type="text" class="form-control border-0 bg-light rounded-2" 
+                       placeholder="Что планируете сделать?" 
+                       value="${item.planned_task}" 
+                       onchange="updateTask(${idx}, this.value)">`;
+        }
+
         list.innerHTML += `
-            <div class="card mb-3 interval-card shadow-sm ${isActive ? (mode === 'work' ? 'active-work' : 'active-rest') : ''} ${item.status === 'completed' ? 'completed' : ''}">
+            <div class="card mb-3 interval-card shadow-sm ${isActive ? (mode === 'work' ? 'active-work' : 'active-rest') : ''} ${isCompleted ? 'completed' : ''}">
                 <div class="card-body p-4">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <div class="d-flex align-items-center">
@@ -351,39 +389,45 @@ function render() {
                             <h5 class="mb-0 fw-bold">Интервал ${idx}</h5>
                         </div>
                         <div class="text-end">
-                            <span class="badge rounded-pill bg-dark font-monospace px-3">
-                                Осталось: ${formatTime(remainingWork)}
+                            <span class="badge rounded-pill ${isCompleted ? 'bg-secondary' : 'bg-dark'} font-monospace px-3">
+                                ${isCompleted ? 'Завершено' : 'Осталось: ' + formatTime(remainingWork)}
                             </span>
                         </div>
                     </div>
                     
-                    <div class="progress mb-3">
-                        <div class="progress-bar ${workPercent >= 100 ? 'bg-success' : ''}" 
+                    <div class="progress mb-3" style="height: 6px !important;">
+                        <div class="progress-bar ${isCompleted ? 'bg-secondary' : (workPercent >= 100 ? 'bg-success' : '')}" 
                              role="progressbar" style="width: ${workPercent}%"></div>
                     </div>
 
                     <div class="mb-3">
-                        <input type="text" class="form-control border-0 bg-light rounded-2" 
-                               placeholder="Что планируете сделать?" 
-                               value="${item.planned_task}" 
-                               onchange="updateTask(${idx}, this.value)"
-                               ${item.status === 'completed' ? 'disabled' : ''}>
+                        ${taskContent}
                     </div>
 
                     <div class="d-flex justify-content-between align-items-center">
-                        <div class="btn-group shadow-sm rounded-3">
-                            <button class="btn btn-sm btn-primary px-3" onclick="startWork(${idx})" ${isActive && mode==='work' ? 'disabled' : ''}>
-                                <i class="bi bi-play-fill"></i> Работа
-                            </button>
-                            <button class="btn btn-sm btn-success px-3" onclick="startRest(${idx})" ${isActive && mode==='rest' ? 'disabled' : ''}>
-                                <i class="bi bi-cup-hot"></i> Отдых
-                            </button>
+                        <div>
+                            ${!isCompleted ? `
+                                <div class="btn-group shadow-sm rounded-3">
+                                    <button class="btn btn-sm btn-primary px-3" onclick="startWork(${idx})" ${isActive && mode==='work' ? 'disabled' : ''}>
+                                        <i class="bi bi-play-fill"></i> Работа
+                                    </button>
+                                    <button class="btn btn-sm btn-success px-3" onclick="startRest(${idx})" ${isActive && mode==='rest' ? 'disabled' : ''}>
+                                        <i class="bi bi-cup-hot"></i> Отдых
+                                    </button>
+                                </div>
+                            ` : `
+                                <span class="text-muted small"><i class="bi bi-clock-history me-1"></i> Работа: ${Math.floor(item.total_work_ms/60000)} мин</span>
+                            `}
                         </div>
                         <div class="d-flex align-items-center">
                             ${segments > 0 ? `<small class="text-muted me-3">Сегментов: ${segments}</small>` : ''}
-                            <button class="btn btn-sm btn-outline-secondary border-0" title="Завершить" onclick="completeHour(${idx})">
-                                <i class="bi bi-check-lg"></i>
-                            </button>
+                            ${!isCompleted ? `
+                                <button class="btn btn-sm btn-outline-success border-0" title="Завершить" onclick="completeHour(${idx})">
+                                    <i class="bi bi-check-circle-fill" style="font-size: 1.2rem;"></i>
+                                </button>
+                            ` : `
+                                <i class="bi bi-check-all text-success" style="font-size: 1.5rem;"></i>
+                            `}
                         </div>
                     </div>
                 </div>
