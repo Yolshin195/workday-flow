@@ -96,6 +96,61 @@
     </div>
 </div>
 
+<footer class="container mb-5">
+    <div class="bg-white p-4 p-md-5 rounded-4 shadow-sm border-0">
+        <div class="row g-4">
+            <div class="col-md-6">
+                <h5 class="fw-bold text-dark"><i class="bi bi-info-circle text-primary me-2"></i>Как это работает?</h5>
+                <p class="text-muted small mb-4">
+                    Приложение использует метод <b>глубокого фокуса (Deep Work)</b>: 
+                    50 минут интенсивной работы и 10 минут полного отдыха. 
+                    Индикаторы показывают качество часа: если вы часто нажимали паузу, точка сменит цвет.
+                </p>
+                <div class="d-flex flex-wrap gap-2">
+                    <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill">1 сегмент: Идеально</span>
+                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-3 py-2 rounded-pill">2-3: Хорошо</span>
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 rounded-pill">4+: Отвлечения</span>
+                </div>
+            </div>
+            
+            <div class="col-md-3 ms-auto">
+                <h6 class="fw-bold text-dark">Помощь</h6>
+                <ul class="list-unstyled small mb-0">
+                    <li class="mb-2">
+                        <a href="guide.html" class="text-decoration-none text-muted d-flex align-items-center">
+                            <i class="bi bi-book me-2 text-primary"></i>Полная инструкция
+                        </a>
+                    </li>
+                    <li class="mb-2">
+                        <a href="#" class="text-decoration-none text-muted d-flex align-items-center" onclick="exportData()">
+                            <i class="bi bi-download me-2 text-primary"></i>Сохранить отчет
+                        </a>
+                    </li>
+                    <li class="mb-2">
+                        <a href="https://github.com/yolshin195/workday-flow" target="_blank" class="text-decoration-none text-muted d-flex align-items-center">
+                            <i class="bi bi-github me-2 text-primary"></i>Исходный код
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="col-md-2">
+                <h6 class="fw-bold text-dark">Конфиденциальность</h6>
+                <div class="p-2 bg-light rounded-3 text-center">
+                    <p class="small text-success fw-bold mb-0" style="font-size: 0.75rem;">
+                        <i class="bi bi-shield-lock-fill me-1"></i> Local Storage
+                    </p>
+                    <p class="text-muted mb-0" style="font-size: 0.65rem;">Данные только у вас</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="text-center mt-5 pt-4 border-top">
+            <p class="text-muted small mb-0 opacity-75">© 2024 Deep Focus Tracker • Сделано для осознанной работы</p>
+        </div>
+    </div>
+</footer>
+
 <script>
 const LIMITS = {
     work: 50 * 60 * 1000,

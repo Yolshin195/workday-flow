@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Инструкция | Deep Focus Guide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --bg-main: #f4f7f6;
+            --primary-accent: #0d6efd;
+        }
+        body { background-color: var(--bg-main); font-family: 'Inter', sans-serif; color: #343a40; }
+        .guide-card { border: none; border-radius: 20px; transition: transform 0.2s; }
+        .step-number { 
+            width: 40px; height: 40px; background: var(--primary-accent); 
+            color: white; border-radius: 50%; display: flex; 
+            align-items: center; justify-content: center; font-weight: bold; margin-bottom: 1rem;
+        }
+        .icon-box { font-size: 2rem; color: var(--primary-accent); margin-bottom: 1rem; }
+        .feature-tag { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; color: #6c757d; }
+    </style>
+</head>
+<body>
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="text-center mb-5">
+                <a href="index.html" class="btn btn-sm btn-outline-secondary mb-3">
+                    <i class="bi bi-arrow-left"></i> Вернуться к трекеру
+                </a>
+                <h1 class="display-5 fw-bold text-dark">Как работает Deep Focus?</h1>
+                <p class="lead text-muted">Методология продуктивной работы в одном приложении</p>
+            </div>
+
+            <div class="card guide-card shadow-sm p-4 mb-5">
+                <div class="card-body">
+                    <h3 class="fw-bold mb-3">Основа: Правило 50/10</h3>
+                    <p>Приложение построено на ритмах глубокой концентрации. Человеческий мозг может сохранять пиковую фокусировку около 50 минут, после чего необходим качественный отдых.</p>
+                    <div class="row text-center mt-4">
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded-4">
+                                <h4 class="text-primary fw-bold mb-0">50 мин</h4>
+                                <small class="text-muted">Глубокая работа</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded-4">
+                                <h4 class="text-success fw-bold mb-0">10 мин</h4>
+                                <small class="text-muted">Полный отдых</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h4 class="fw-bold mb-4">Ваш идеальный рабочий день:</h4>
+            
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="card guide-card shadow-sm h-100 p-3">
+                        <div class="card-body">
+                            <div class="step-number">1</div>
+                            <h5 class="fw-bold">Старт дня</h5>
+                            <p class="small text-muted">Нажмите кнопку <b>"Начать рабочий день"</b>. Это зафиксирует время входа в рабочий режим и дисциплинирует разум.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card guide-card shadow-sm h-100 p-3">
+                        <div class="card-body">
+                            <div class="step-number">2</div>
+                            <h5 class="fw-bold">Постановка цели</h5>
+                            <p class="small text-muted">Запишите в боковой панели <b>главную цель на день</b>. Фокусировка на одном важном деле эффективнее списка из 20 мелких задач.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card guide-card shadow-sm h-100 p-3">
+                        <div class="card-body">
+                            <div class="step-number">3</div>
+                            <h5 class="fw-bold">Интервалы</h5>
+                            <p class="small text-muted">Запишите задачу на текущий час и нажмите <b>"Работа"</b>. Старайтесь не отвлекаться, пока тикает таймер.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card guide-card shadow-sm h-100 p-3">
+                        <div class="card-body">
+                            <div class="step-number">4</div>
+                            <h5 class="fw-bold">Контроль фокуса</h5>
+                            <p class="small text-muted">Цвет точки индикатора (зеленый/желтый/красный) покажет, сколько раз вы прерывали работу. Один сегмент — идеально!</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-5 pt-4">
+                <h4 class="fw-bold mb-4">Полезные функции</h4>
+                <div class="list-group list-group-flush bg-transparent">
+                    <div class="list-group-item bg-transparent border-0 d-flex align-items-start mb-3">
+                        <i class="bi bi-bell-fill text-warning me-3 fs-4"></i>
+                        <div>
+                            <h6 class="fw-bold mb-1">Умные уведомления</h6>
+                            <p class="small text-muted">Приложение подаст звуковой сигнал и пришлет Push-уведомление, когда время работы или отдыха истечет. Можно не следить за вкладкой.</p>
+                        </div>
+                    </div>
+                    <div class="list-group-item bg-transparent border-0 d-flex align-items-start mb-3">
+                        <i class="bi bi-cloud-slash text-danger me-3 fs-4"></i>
+                        <div>
+                            <h6 class="fw-bold mb-1">Приватность и Offline</h6>
+                            <p class="small text-muted">Все данные хранятся только в вашем браузере (LocalStorage). Никаких серверов и регистрации. Вы можете скачать отчет за день в формате JSON.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center mt-5 py-4 border-top">
+                <p class="text-muted small">Продуктивность — это не количество часов, а качество фокуса.</p>
+                <a href="index.html" class="btn btn-primary btn-pill px-5">Начать работу</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
