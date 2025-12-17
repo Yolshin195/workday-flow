@@ -175,9 +175,13 @@
 </footer>
 
 <script>
+// Фоновый воркер для стабильности таймера
+const blob = new Blob([`setInterval(() => postMessage('t'), 1000);`], {type: 'text/javascript'});
+const worker = new Worker(URL.createObjectURL(blob));
+
 const LIMITS = {
     work: 50 * 60 * 1000,
-    rest: 10 * 60 * 1000
+    rest: 0.5 * 60 * 1000
 };
 
 let alarmTriggered = false;
@@ -272,7 +276,8 @@ function init() {
     document.getElementById('dailySummary').value = app.state.day_metadata.daily_summary || "";
 
     render();
-    setInterval(updateTimerLogic, 1000);
+    // Запускаем через воркер вместо setInterval
+    worker.onmessage = () => updateTimerLogic();
 }
 
 // Рендеринг кнопок начала/конца дня
@@ -459,7 +464,7 @@ function updateTimerLogic() {
     document.getElementById('statusLabel').innerText = state.mode === 'work' ? '🔥 До конца работы' : '☕ Отдых';
     document.title = `${timeString} ${state.mode === 'work' ? '🔥' : '☕'} | Deep Focus`;
 
-    if (remainingMs === 0) {
+    if (remainingMs <= 0) { // Использовано <= вместо ===
         document.getElementById('mainTimer').classList.add('text-danger');
         triggerAlarm(state.mode);
     } else {
