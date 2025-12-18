@@ -181,7 +181,7 @@ const worker = new Worker(URL.createObjectURL(blob));
 
 const LIMITS = {
     work: 50 * 60 * 1000,
-    rest: 0.5 * 60 * 1000
+    rest: 10 * 60 * 1000
 };
 
 let alarmTriggered = false;
