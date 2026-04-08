@@ -35,10 +35,9 @@
         .sticky-sidebar { position: sticky; top: 20px; }
         .btn-pill { border-radius: 50px; padding-left: 1.5rem; padding-right: 1.5rem; }
         
-        /* Стили для новой панели */
-        .workday-status-card { background: white; border-radius: 15px; padding: 15px 25px; margin-bottom: 2rem; }
+        .workday-status-card { background: white; border-radius: 15px; padding: 15px 25px; margin-bottom: 1rem; }
         .time-badge { font-weight: bold; color: var(--primary-accent); font-size: 1.1rem; }
-        /* Стили для завершенного результата */
+
         .result-box {
             background-color: #ffffff;
             border-left: 3px solid #6c757d;
@@ -56,6 +55,114 @@
             color: #6c757d;
             font-weight: 500;
         }
+
+        /* ===== БЛОК УТРЕННИХ РИТУАЛОВ ===== */
+        .rituals-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px 25px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.04);
+        }
+        .rituals-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .ritual-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            border-radius: 10px;
+            transition: background 0.15s;
+            margin-bottom: 4px;
+        }
+        .ritual-item:hover { background: #f8f9fa; }
+        .ritual-item.ritual-done { background: #f0fff4; }
+        .ritual-item.ritual-done .ritual-label {
+            text-decoration: line-through;
+            color: #6c757d;
+        }
+        .ritual-checkbox {
+            width: 20px; height: 20px;
+            border-radius: 6px;
+            border: 2px solid #dee2e6;
+            appearance: none;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.15s;
+            background: white;
+            position: relative;
+        }
+        .ritual-checkbox:checked {
+            background: var(--focus-high);
+            border-color: var(--focus-high);
+        }
+        .ritual-checkbox:checked::after {
+            content: '';
+            position: absolute;
+            left: 4px; top: 1px;
+            width: 6px; height: 10px;
+            border: 2px solid white;
+            border-top: none; border-left: none;
+            transform: rotate(45deg);
+        }
+        .ritual-label {
+            flex: 1;
+            font-size: 0.9rem;
+            color: #212529;
+        }
+        .ritual-delete-btn {
+            background: none;
+            border: none;
+            color: #adb5bd;
+            padding: 2px 6px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            opacity: 0;
+            transition: opacity 0.15s, color 0.15s;
+        }
+        .ritual-item:hover .ritual-delete-btn { opacity: 1; }
+        .ritual-delete-btn:hover { color: var(--focus-low); }
+        .ritual-add-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #f0f0f0;
+        }
+        .ritual-add-input {
+            flex: 1;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 7px 12px;
+            font-size: 0.875rem;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .ritual-add-input:focus { border-color: var(--primary-accent); }
+        .ritual-progress-bar {
+            height: 4px;
+            background: #e9ecef;
+            border-radius: 4px;
+            margin-bottom: 14px;
+            overflow: hidden;
+        }
+        .ritual-progress-fill {
+            height: 100%;
+            background: var(--focus-high);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+        .ritual-counter {
+            font-size: 0.75rem;
+            color: #6c757d;
+            font-weight: 500;
+        }
+        /* ===== КОНЕЦ СТИЛЕЙ РИТУАЛОВ ===== */
     </style>
 </head>
 <body>
@@ -76,8 +183,10 @@
         </div>
     </header>
 
-    <div id="dayControlPanel" class="workday-status-card shadow-sm d-flex gap-4 align-items-center">
-        </div>
+    <div id="dayControlPanel" class="workday-status-card shadow-sm d-flex gap-4 align-items-center"></div>
+
+    <!-- БЛОК УТРЕННИХ РИТУАЛОВ -->
+    <div id="ritualsPanel" class="rituals-card shadow-sm"></div>
 
     <div class="row g-4">
         <div class="col-lg-4">
@@ -186,6 +295,19 @@ const LIMITS = {
 
 let alarmTriggered = false;
 
+// ===== ШАБЛОН УТРЕННИХ РИТУАЛОВ ПО УМОЛЧАНИЮ =====
+const DEFAULT_RITUALS = [
+    { id: 1, text: "8:00 — Проснуться", done: false },
+    { id: 2, text: "Написать себе три комментария", done: false },
+    { id: 3, text: "Почистить зубы", done: false },
+    { id: 4, text: "Выпить стакан воды", done: false },
+    { id: 5, text: "Пойти в спортзал", done: false },
+    { id: 6, text: "Позавтракать", done: false }
+];
+
+// Ключ для хранения шаблона ритуалов (сохраняется между днями)
+const RITUALS_TEMPLATE_KEY = 'deep_focus_rituals_template';
+
 class ProductivityApp {
     constructor(initialData = null) {
         this.state = initialData || this.createNewDay();
@@ -202,15 +324,27 @@ class ProductivityApp {
             total_work_ms: 0,
             total_rest_ms: 0
         }));
+
+        // При создании нового дня берём шаблон из localStorage (если есть),
+        // иначе — дефолтный список, но сбрасываем флаги done
+        const savedTemplate = localStorage.getItem(RITUALS_TEMPLATE_KEY);
+        let morningRituals;
+        if (savedTemplate) {
+            morningRituals = JSON.parse(savedTemplate).map(r => ({ ...r, done: false }));
+        } else {
+            morningRituals = DEFAULT_RITUALS.map(r => ({ ...r, done: false }));
+        }
+
         return {
             day_metadata: { 
                 date: new Date().toLocaleDateString('ru-RU'), 
                 daily_main_goal: "", 
                 daily_summary: "",
-                day_start: null, // Новое поле
-                day_end: null    // Новое поле
+                day_start: null,
+                day_end: null
             },
             current_state: { active_hour_index: 0, mode: "idle", active_timer_start: null },
+            morning_rituals: morningRituals,  // <<< НОВЫЙ БЛОК В МОДЕЛИ
             work_intervals: intervals
         };
     }
@@ -222,6 +356,30 @@ class ProductivityApp {
 
     setDayEnd() {
         this.state.day_metadata.day_end = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // ===== МЕТОДЫ РИТУАЛОВ =====
+    toggleRitual(id) {
+        const ritual = this.state.morning_rituals.find(r => r.id === id);
+        if (ritual) ritual.done = !ritual.done;
+        this._saveRitualsTemplate();
+    }
+
+    addRitual(text) {
+        const maxId = this.state.morning_rituals.reduce((m, r) => Math.max(m, r.id), 0);
+        this.state.morning_rituals.push({ id: maxId + 1, text: text.trim(), done: false });
+        this._saveRitualsTemplate();
+    }
+
+    deleteRitual(id) {
+        this.state.morning_rituals = this.state.morning_rituals.filter(r => r.id !== id);
+        this._saveRitualsTemplate();
+    }
+
+    // Сохраняем текущий список как новый шаблон (без флагов done)
+    _saveRitualsTemplate() {
+        const template = this.state.morning_rituals.map(r => ({ id: r.id, text: r.text, done: false }));
+        localStorage.setItem(RITUALS_TEMPLATE_KEY, JSON.stringify(template));
     }
 
     startWork(idx) {
@@ -269,14 +427,25 @@ const STORAGE_KEY = 'deep_focus_v4_countdown';
 
 function init() {
     const saved = localStorage.getItem(STORAGE_KEY);
-    app = new ProductivityApp(saved ? JSON.parse(saved) : null);
+    let parsedData = saved ? JSON.parse(saved) : null;
+
+    // Миграция: если в сохранённых данных нет morning_rituals — добавляем
+    if (parsedData && !parsedData.morning_rituals) {
+        const savedTemplate = localStorage.getItem(RITUALS_TEMPLATE_KEY);
+        if (savedTemplate) {
+            parsedData.morning_rituals = JSON.parse(savedTemplate).map(r => ({ ...r, done: false }));
+        } else {
+            parsedData.morning_rituals = DEFAULT_RITUALS.map(r => ({ ...r, done: false }));
+        }
+    }
+
+    app = new ProductivityApp(parsedData);
     
     document.getElementById('currentDateDisplay').innerText = app.state.day_metadata.date;
     document.getElementById('dailyGoal').value = app.state.day_metadata.daily_main_goal || "";
     document.getElementById('dailySummary').value = app.state.day_metadata.daily_summary || "";
 
     render();
-    // Запускаем через воркер вместо setInterval
     worker.onmessage = () => updateTimerLogic();
 }
 
@@ -318,6 +487,86 @@ function renderDayControls() {
     container.innerHTML = html;
 }
 
+// ===== РЕНДЕРИНГ БЛОКА УТРЕННИХ РИТУАЛОВ =====
+function renderRituals() {
+    const container = document.getElementById('ritualsPanel');
+    const rituals = app.state.morning_rituals || [];
+    const doneCount = rituals.filter(r => r.done).length;
+    const total = rituals.length;
+    const percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
+    const allDone = doneCount === total && total > 0;
+    const headerIcon = allDone 
+        ? `<i class="bi bi-sun-fill text-warning me-2"></i>` 
+        : `<i class="bi bi-sunrise text-primary me-2"></i>`;
+
+    let ritualsHtml = rituals.map(r => `
+        <div class="ritual-item ${r.done ? 'ritual-done' : ''}" id="ritual-row-${r.id}">
+            <input 
+                type="checkbox" 
+                class="ritual-checkbox" 
+                ${r.done ? 'checked' : ''}
+                onchange="toggleRitual(${r.id})"
+            >
+            <span class="ritual-label">${escapeHtml(r.text)}</span>
+            <button class="ritual-delete-btn" title="Удалить" onclick="deleteRitual(${r.id})">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+    `).join('');
+
+    container.innerHTML = `
+        <div class="rituals-header">
+            <h5 class="fw-bold mb-0">${headerIcon}Утренние ритуалы</h5>
+            <span class="ritual-counter">${doneCount} / ${total}</span>
+        </div>
+        <div class="ritual-progress-bar">
+            <div class="ritual-progress-fill" style="width: ${percent}%"></div>
+        </div>
+        <div id="ritualsList">
+            ${total > 0 ? ritualsHtml : '<p class="text-muted small mb-0 ps-1">Список пуст. Добавьте первый ритуал ниже.</p>'}
+        </div>
+        <div class="ritual-add-row">
+            <input 
+                type="text" 
+                id="ritualInput" 
+                class="ritual-add-input" 
+                placeholder="Добавить новый ритуал..."
+                onkeydown="if(event.key==='Enter') addRitualFromInput()"
+                maxlength="100"
+            >
+            <button class="btn btn-sm btn-primary btn-pill px-3" onclick="addRitualFromInput()">
+                <i class="bi bi-plus-lg"></i> Добавить
+            </button>
+        </div>
+    `;
+}
+
+function escapeHtml(text) {
+    return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toggleRitual(id) {
+    app.toggleRitual(id);
+    saveAndRender();
+}
+
+function deleteRitual(id) {
+    app.deleteRitual(id);
+    saveAndRender();
+}
+
+function addRitualFromInput() {
+    const input = document.getElementById('ritualInput');
+    const text = input ? input.value.trim() : '';
+    if (!text) return;
+    app.addRitual(text);
+    saveAndRender();
+    // Фокус обратно на поле ввода
+    const newInput = document.getElementById('ritualInput');
+    if (newInput) newInput.focus();
+}
+
 function triggerStartDay() {
     app.setDayStart();
     saveAndRender();
@@ -350,8 +599,9 @@ function triggerAlarm(mode) {
 }
 
 function render() {
-    renderDayControls(); 
-    
+    renderDayControls();
+    renderRituals();
+
     const list = document.getElementById('intervalsList');
     list.innerHTML = '';
 
@@ -464,7 +714,7 @@ function updateTimerLogic() {
     document.getElementById('statusLabel').innerText = state.mode === 'work' ? '🔥 До конца работы' : '☕ Отдых';
     document.title = `${timeString} ${state.mode === 'work' ? '🔥' : '☕'} | Deep Focus`;
 
-    if (remainingMs <= 0) { // Использовано <= вместо ===
+    if (remainingMs <= 0) {
         document.getElementById('mainTimer').classList.add('text-danger');
         triggerAlarm(state.mode);
     } else {
@@ -509,7 +759,12 @@ function importData(e) {
     const reader = new FileReader();
     reader.onload = (ev) => { 
         try {
-            app.state = JSON.parse(ev.target.result); 
+            const imported = JSON.parse(ev.target.result);
+            // Если в импортируемом файле нет morning_rituals — добавляем дефолтные
+            if (!imported.morning_rituals) {
+                imported.morning_rituals = DEFAULT_RITUALS.map(r => ({ ...r, done: false }));
+            }
+            app.state = imported;
             saveAndRender(); 
             location.reload(); 
         } catch(e) { alert("Ошибка импорта"); }
@@ -522,39 +777,21 @@ function resetDay() { if(confirm('Удалить данные за день?')) 
 function loadDemoData() {
     if (!confirm('Это заменит ваши текущие данные демонстрационными. Продолжить?')) return;
 
-    // Сценарий: Разработка модуля аналитики
     const demoTasks = [
-        { 
-            task: "Разбор почты, планирование дня и приоритезация задач", 
-            res: "Выделено 3 ключевых тикета на сегодня. Ответил на срочные письма.", 
-            segments: 2 // Желтый: небольшие отвлечения на почту
-        },
-        { 
-            task: "[Часть 1/2] Проектирование схемы данных для модуля отчетов", 
-            res: "Описал структуру JSON, подготовил SQL миграцию.", 
-            segments: 1 // Зеленый: Глубокая работа
-        },
-        { 
-            task: "[Часть 2/2] Реализация API эндпоинтов для выгрузки аналитики", 
-            res: "Написал контроллеры, подключил фильтрацию по датам. Работает!", 
-            segments: 1 // Зеленый: Глубокая работа продолжается
-        },
-        { 
-            task: "Обед и прогулка (информационный детокс)", 
-            res: "Отдохнул без телефона, готов ко второй половине дня.", 
-            segments: 1 
-        },
-        { 
-            task: "Фикс багов по UI: верстка мобильного меню и кнопок", 
-            res: "Поправил отступы в хедере, исправил баг с наложением слоев.", 
-            segments: 5 // Красный: Постоянно дергали в чатах или фиксил мелкие детали
-        }
+        { task: "Разбор почты, планирование дня и приоритезация задач", res: "Выделено 3 ключевых тикета на сегодня. Ответил на срочные письма.", segments: 2 },
+        { task: "[Часть 1/2] Проектирование схемы данных для модуля отчетов", res: "Описал структуру JSON, подготовил SQL миграцию.", segments: 1 },
+        { task: "[Часть 2/2] Реализация API эндпоинтов для выгрузки аналитики", res: "Написал контроллеры, подключил фильтрацию по датам. Работает!", segments: 1 },
+        { task: "Обед и прогулка (информационный детокс)", res: "Отдохнул без телефона, готов ко второй половине дня.", segments: 1 },
+        { task: "Фикс багов по UI: верстка мобильного меню и кнопок", res: "Поправил отступы в хедере, исправил баг с наложением слоев.", segments: 5 }
     ];
 
     app.state = app.createNewDay();
     app.state.day_metadata.day_start = "10:00";
     app.state.day_metadata.daily_main_goal = "Запустить MVP модуля аналитики и закрыть долги по верстке";
     app.state.day_metadata.daily_summary = "Удалось поработать в режиме 'глубокого погружения' над архитектурой (2 часа подряд). Во второй половине дня фокус упал из-за правок по UI — нужно планировать такие задачи отдельно от сложного кода.";
+
+    // Демо-ритуалы: часть выполнена
+    app.state.morning_rituals = app.state.morning_rituals.map((r, i) => ({ ...r, done: i < 4 }));
 
     demoTasks.forEach((demo, i) => {
         const interval = app.state.work_intervals[i];
