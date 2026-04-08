@@ -178,6 +178,9 @@
         <div class="btn-group shadow-sm">
             <button class="btn btn-outline-secondary" title="Экспорт" onclick="exportData()"><i class="bi bi-download"></i></button>
             <button class="btn btn-outline-secondary" title="Импорт" onclick="document.getElementById('importFile').click()"><i class="bi bi-upload"></i></button>
+            <button class="btn btn-outline-secondary" title="Экспортировать отчет в Markdown" onclick="exportMarkdown()">
+                <i class="bi bi-markdown"></i>
+            </button>
             <input type="file" id="importFile" hidden onchange="importData(event)">
             <button class="btn btn-danger" onclick="resetDay()">Сброс</button>
         </div>
@@ -819,6 +822,104 @@ function loadDemoData() {
     
     // Скролл вверх, чтобы увидеть результат
     window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function formatFocus(segments) {
+    if (segments === 1) return "🟢 Отлично";
+    if (segments <= 3) return "🟡 Хорошо";
+    return "🔴 Много переключений";
+}
+
+function exportMarkdown() {
+    const state = app.state;
+
+    const ritualsDone = state.morning_rituals.filter(r => r.done).length;
+    const ritualsTotal = state.morning_rituals.length;
+
+    let md = `# 📅 Отчёт о рабочем дне — ${state.day_metadata.date}
+
+---
+
+# 🎯 Главная цель дня
+
+**${state.day_metadata.daily_main_goal}**
+
+---
+
+# ⏰ Рабочий день
+
+- Начало: ${state.day_metadata.day_start || "-"}
+- Завершение: ${state.day_metadata.day_end || "-"}
+
+---
+
+# 🌅 Утренние ритуалы
+
+`;
+
+    state.morning_rituals.forEach(r => {
+        md += `- [${r.done ? "x" : " "}] ${r.text}\n`;
+    });
+
+    md += `\nВыполнено: ${ritualsDone} / ${ritualsTotal}\n\n`;
+
+    md += `---\n\n# 🧠 Рабочие интервалы\n\n`;
+
+    state.work_intervals.forEach(interval => {
+
+        const segments = interval.work_segments.length;
+        const minutes = Math.floor(interval.total_work_ms / 60000);
+
+        if (interval.status === "completed") {
+
+            md += `## Интервал ${interval.hour_index}
+
+Задача:
+${interval.planned_task}
+
+Результат:
+${interval.actual_result}
+
+Фокус: ${formatFocus(segments)}
+Время работы: ${minutes} мин
+Сегментов: ${segments}
+
+---
+
+`;
+        }
+
+        if (interval.status === "pending" && interval.planned_task) {
+            md += `## В работе — Интервал ${interval.hour_index}
+
+${interval.planned_task}
+
+---
+
+`;
+        }
+
+    });
+
+    md += `# 📊 Итоги дня
+
+${state.day_metadata.daily_summary}
+`;
+
+    downloadMarkdown(md);
+}
+
+function downloadMarkdown(content, date) {
+    const blob = new Blob([content], {
+        type: "text/markdown;charset=utf-8"
+    });
+
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+
+    a.download = `workday-${date}.md`;
+
+    a.click();
 }
 
 init();
